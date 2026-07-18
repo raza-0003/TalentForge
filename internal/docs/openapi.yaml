@@ -1,0 +1,581 @@
+openapi: 3.0.3
+info:
+  title: Enterprise ATS API
+  version: "1.0.0"
+  description: >
+    Applicant Tracking System API. Authenticate via /api/v1/auth/login, then send
+    the access token as `Authorization: Bearer <token>`. Roles: candidate,
+    recruiter, admin.
+servers:
+  - url: http://localhost:8080
+    description: Local
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Auth
+  - name: Jobs
+  - name: Applications
+  - name: Candidate
+  - name: Resumes
+  - name: Interviews
+  - name: Offers
+  - name: Search
+  - name: Admin
+  - name: Health
+
+paths:
+  /healthz:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      security: []
+      responses:
+        "200": { description: OK }
+  /readyz:
+    get:
+      tags: [Health]
+      summary: Readiness probe (pings Postgres and Redis)
+      security: []
+      responses:
+        "200": { description: Ready }
+        "503": { description: A dependency is unreachable }
+
+  /api/v1/auth/signup:
+    post:
+      tags: [Auth]
+      summary: Register a new candidate
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignupRequest" }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in and receive tokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: "#/components/schemas/User" }
+                  tokens: { $ref: "#/components/schemas/TokenPair" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotate a refresh token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RefreshRequest" }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/TokenPair" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Revoke a refresh token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RefreshRequest" }
+      responses:
+        "204": { description: No Content }
+  /api/v1/me:
+    get:
+      tags: [Auth]
+      summary: Current user
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/jobs:
+    get:
+      tags: [Jobs]
+      summary: List jobs
+      security: []
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [draft, open, closed] } }
+        - { name: q, in: query, schema: { type: string } }
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Offset" }
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [Jobs]
+      summary: Create a job (recruiter/admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JobRequest" }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Job" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/v1/jobs/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Jobs]
+      summary: Get a job
+      security: []
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Job" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [Jobs]
+      summary: Update a job (owner recruiter/admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JobRequest" }
+      responses:
+        "200": { description: OK }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/v1/jobs/{id}/close:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Jobs]
+      summary: Close a job (owner recruiter/admin)
+      responses:
+        "200": { description: OK }
+  /api/v1/jobs/{id}/apply:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Applications]
+      summary: Apply to a job (candidate)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApplyRequest" }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Application" } } } }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /api/v1/jobs/{id}/applications:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Applications]
+      summary: List a job's applications (recruiter/admin)
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Offset" }
+      responses:
+        "200": { description: OK }
+
+  /api/v1/applications/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Applications]
+      summary: Get an application (owner candidate or recruiter/admin)
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Application" } } } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/v1/applications/{id}/timeline:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Applications]
+      summary: Application timeline
+      responses:
+        "200": { description: OK }
+  /api/v1/applications/{id}/status:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [Applications]
+      summary: Change application status (recruiter/admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StatusRequest" }
+      responses:
+        "200": { description: OK }
+  /api/v1/candidate/applications:
+    get:
+      tags: [Candidate]
+      summary: The candidate's own applications
+      responses:
+        "200": { description: OK }
+
+  /api/v1/candidate/profile:
+    get:
+      tags: [Candidate]
+      summary: Get the candidate profile
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/CandidateProfile" } } } }
+    put:
+      tags: [Candidate]
+      summary: Update the candidate profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CandidateProfile" }
+      responses:
+        "200": { description: OK }
+
+  /api/v1/candidate/resumes:
+    get:
+      tags: [Resumes]
+      summary: List the candidate's resumes
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [Resumes]
+      summary: Upload a resume (multipart)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                primary: { type: string, enum: ["true", "false"] }
+              required: [file]
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Resume" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /api/v1/candidate/resumes/{id}/primary:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Resumes]
+      summary: Set a resume as primary
+      responses:
+        "200": { description: OK }
+  /api/v1/resumes/{id}/download:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Resumes]
+      summary: Download a resume (owner candidate or recruiter/admin)
+      responses:
+        "200": { description: The file, content: { application/octet-stream: { schema: { type: string, format: binary } } } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/v1/candidates:
+    get:
+      tags: [Search]
+      summary: Search candidates by skills and/or name (recruiter/admin)
+      parameters:
+        - { name: skills, in: query, description: "Comma-separated, e.g. Go,PostgreSQL", schema: { type: string } }
+        - { name: match, in: query, schema: { type: string, enum: [any, all], default: any } }
+        - { name: q, in: query, schema: { type: string } }
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Offset" }
+      responses:
+        "200": { description: OK }
+
+  /api/v1/applications/{id}/interviews:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Interviews]
+      summary: List an application's interviews (recruiter/admin)
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [Interviews]
+      summary: Schedule an interview (recruiter/admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScheduleRequest" }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Interview" } } } }
+  /api/v1/interviews/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [Interviews]
+      summary: Reschedule or change interview status
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InterviewUpdateRequest" }
+      responses:
+        "200": { description: OK }
+  /api/v1/interviews/{id}/feedback:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Interviews]
+      summary: Get interview feedback
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Feedback" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Interviews]
+      summary: Add interview feedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FeedbackRequest" }
+      responses:
+        "201": { description: Created }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /api/v1/applications/{id}/offers:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Offers]
+      summary: List an application's offers (recruiter/admin)
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [Offers]
+      summary: Create an offer and render its PDF (recruiter/admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OfferRequest" }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Offer" } } } }
+  /api/v1/offers/{id}/send:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post: { tags: [Offers], summary: "Send an offer (recruiter/admin)", responses: { "200": { description: OK } } }
+  /api/v1/offers/{id}/rescind:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post: { tags: [Offers], summary: "Rescind an offer (recruiter/admin)", responses: { "200": { description: OK } } }
+  /api/v1/offers/{id}/accept:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post: { tags: [Offers], summary: "Accept an offer (candidate)", responses: { "200": { description: OK } } }
+  /api/v1/offers/{id}/decline:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post: { tags: [Offers], summary: "Decline an offer (candidate)", responses: { "200": { description: OK } } }
+  /api/v1/candidate/offers:
+    get: { tags: [Offers], summary: "The candidate's own offers", responses: { "200": { description: OK } } }
+  /api/v1/offers/{id}/download:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Offers]
+      summary: Download an offer PDF (owner candidate or recruiter/admin)
+      responses:
+        "200": { description: The PDF, content: { application/pdf: { schema: { type: string, format: binary } } } }
+
+  /api/v1/admin/recruiters:
+    get: { tags: [Admin], summary: "List recruiters (admin)", responses: { "200": { description: OK } } }
+    post:
+      tags: [Admin]
+      summary: Provision a recruiter (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignupRequest" }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+  /api/v1/admin/users/{id}/active:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [Admin]
+      summary: Enable/disable a user (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { is_active: { type: boolean } }
+      responses:
+        "200": { description: OK }
+  /api/v1/admin/analytics:
+    get: { tags: [Admin], summary: "Hiring analytics (admin)", responses: { "200": { description: OK } } }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, default: 20, maximum: 100 }
+    Offset:
+      name: offset
+      in: query
+      schema: { type: integer, default: 0 }
+  responses:
+    BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    Unauthorized: { description: Missing or invalid credentials, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    Forbidden: { description: Not allowed, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    NotFound: { description: Not found, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    Conflict: { description: Already exists, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  schemas:
+    Error:
+      type: object
+      properties: { error: { type: string } }
+    SignupRequest:
+      type: object
+      required: [email, password, full_name]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        full_name: { type: string }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties: { refresh_token: { type: string } }
+    TokenPair:
+      type: object
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        expires_at: { type: string, format: date-time }
+    User:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        email: { type: string }
+        full_name: { type: string }
+        role: { type: string, enum: [candidate, recruiter, admin] }
+        is_active: { type: boolean }
+    JobRequest:
+      type: object
+      required: [title, description]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        department: { type: string }
+        location: { type: string }
+        employment_type: { type: string }
+        min_experience: { type: integer }
+        status: { type: string, enum: [draft, open, closed] }
+    Job:
+      allOf:
+        - { $ref: "#/components/schemas/JobRequest" }
+        - type: object
+          properties:
+            id: { type: integer, format: int64 }
+            created_by: { type: integer, format: int64 }
+    ApplyRequest:
+      type: object
+      properties:
+        resume_id: { type: integer, format: int64 }
+        cover_letter: { type: string }
+    Application:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        job_id: { type: integer, format: int64 }
+        candidate_id: { type: integer, format: int64 }
+        resume_id: { type: integer, format: int64 }
+        status: { type: string, enum: [applied, screening, shortlisted, interview, offer, hired, rejected, withdrawn] }
+        cover_letter: { type: string }
+    StatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string }
+        note: { type: string }
+    CandidateProfile:
+      type: object
+      properties:
+        phone: { type: string }
+        headline: { type: string }
+        location: { type: string }
+        links: { type: object, additionalProperties: { type: string } }
+        skills: { type: array, items: { type: string } }
+    Resume:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        file_name: { type: string }
+        content_type: { type: string }
+        size_bytes: { type: integer }
+        is_primary: { type: boolean }
+        parsed_at: { type: string, format: date-time }
+        parsed_data: { type: object }
+    ScheduleRequest:
+      type: object
+      required: [interviewer_id, scheduled_at]
+      properties:
+        interviewer_id: { type: integer, format: int64 }
+        scheduled_at: { type: string, format: date-time }
+        duration_minutes: { type: integer }
+        mode: { type: string, enum: [onsite, phone, video] }
+        location: { type: string }
+    Interview:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        application_id: { type: integer, format: int64 }
+        interviewer_id: { type: integer, format: int64 }
+        scheduled_at: { type: string, format: date-time }
+        duration_minutes: { type: integer }
+        mode: { type: string }
+        status: { type: string }
+    InterviewUpdateRequest:
+      type: object
+      properties:
+        scheduled_at: { type: string, format: date-time }
+        duration_minutes: { type: integer }
+        mode: { type: string }
+        location: { type: string }
+        status: { type: string, enum: [scheduled, completed, cancelled, no_show] }
+    FeedbackRequest:
+      type: object
+      required: [rating, recommendation]
+      properties:
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        recommendation: { type: string, enum: [strong_yes, yes, no, strong_no] }
+        strengths: { type: string }
+        weaknesses: { type: string }
+        comments: { type: string }
+    Feedback:
+      allOf:
+        - { $ref: "#/components/schemas/FeedbackRequest" }
+        - type: object
+          properties:
+            id: { type: integer, format: int64 }
+            interview_id: { type: integer, format: int64 }
+    OfferRequest:
+      type: object
+      properties:
+        position_title: { type: string }
+        salary_amount: { type: number }
+        salary_currency: { type: string }
+        start_date: { type: string, example: "2026-09-01" }
+        expires_at: { type: string, format: date-time }
+    Offer:
+      allOf:
+        - { $ref: "#/components/schemas/OfferRequest" }
+        - type: object
+          properties:
+            id: { type: integer, format: int64 }
+            application_id: { type: integer, format: int64 }
+            status: { type: string, enum: [draft, sent, accepted, declined, rescinded] }

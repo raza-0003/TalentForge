@@ -1,0 +1,51 @@
+# Copy to config.yaml for local overrides. All values are optional — the app
+# falls back to built-in defaults, and environment variables (ATS_*) override
+# both this file and the defaults.
+env: dev
+
+server:
+  host: 0.0.0.0
+  port: 8080
+
+postgres:
+  host: localhost
+  port: 5432
+  user: ats
+  password: ats
+  dbname: ats
+  sslmode: disable
+
+redis:
+  host: localhost
+  port: 6379
+  password: ""
+  db: 0
+
+# Leave smtp.host empty to log emails instead of sending them. To route through
+# the Mailpit container from docker-compose, set host: localhost.
+smtp:
+  host: ""
+  port: 1025
+  username: ""
+  password: ""
+  from: no-reply@ats.local
+
+# File storage for resumes and offer PDFs. For driver "local" the API and worker
+# must share "dir". For driver "s3", set bucket/region (endpoint is optional, for
+# MinIO or other S3-compatible servers); credentials come from the standard AWS
+# environment (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, or an IAM role).
+storage:
+  driver: local # local | s3
+  dir: ./storage
+  bucket: ""
+  region: ""
+  endpoint: ""
+
+worker:
+  concurrency: 10
+  # Periodic sweep that re-delivers notifications stuck in 'pending'.
+  sweepcron: "@every 5m"
+  sweepaftermin: 15 # only sweep rows older than this many minutes
+
+log:
+  level: info

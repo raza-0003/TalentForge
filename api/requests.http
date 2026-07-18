@@ -1,0 +1,84 @@
+### Enterprise ATS — sample requests
+### Install the "REST Client" (humao.rest-client) extension, then click
+### "Send Request" above each block. Log in first, copy the access_token
+### from the response into @token below, and the rest will work.
+
+@baseUrl = http://localhost:8080/api/v1
+@token = PASTE_ACCESS_TOKEN_HERE
+
+### Health
+GET http://localhost:8080/readyz
+
+### Sign up (candidate)
+POST {{baseUrl}}/auth/signup
+Content-Type: application/json
+
+{
+  "email": "jane@example.com",
+  "password": "password123",
+  "full_name": "Jane Doe"
+}
+
+### Log in  ->  copy "tokens.access_token" from the response into @token above
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "jane@example.com",
+  "password": "password123"
+}
+
+### Who am I
+GET {{baseUrl}}/me
+Authorization: Bearer {{token}}
+
+### Update candidate profile (skills power the recruiter search)
+PUT {{baseUrl}}/candidate/profile
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "headline": "Backend engineer",
+  "location": "Bengaluru",
+  "skills": ["Go", "PostgreSQL", "Docker"]
+}
+
+### List open jobs (public)
+GET {{baseUrl}}/jobs?status=open
+
+### Create a job (needs a recruiter/admin token)
+POST {{baseUrl}}/jobs
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Backend Engineer",
+  "description": "Build the ATS backend in Go.",
+  "location": "Remote",
+  "employment_type": "Full-time"
+}
+
+### Apply to job 1 (candidate)
+POST {{baseUrl}}/jobs/1/apply
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "cover_letter": "I would love to work on this."
+}
+
+### Search candidates by skill (recruiter/admin)
+GET {{baseUrl}}/candidates?skills=Go,PostgreSQL&match=all
+Authorization: Bearer {{token}}
+
+### Create an offer for application 1 (recruiter/admin)
+POST {{baseUrl}}/applications/1/offers
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "position_title": "Backend Engineer",
+  "salary_amount": 1200000,
+  "salary_currency": "INR",
+  "start_date": "2026-09-01"
+}

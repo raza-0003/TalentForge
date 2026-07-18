@@ -1,0 +1,19 @@
+# Compiled binaries
+/bin/
+/out/
+*.exe
+
+# Local config & secrets
+.env
+config.yaml
+
+# Uploaded files (local storage driver)
+/storage/
+
+# Go
+vendor/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
