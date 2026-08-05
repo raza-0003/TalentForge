@@ -229,7 +229,7 @@
    Override at runtime via ?api=https://your-backend-url in the URL,
    or just edit the default below before deploying.
    ============================================================ */
-const DEFAULT_API_BASE = "http://localhost:8080/api/v1";
+const DEFAULT_API_BASE = "https://talentforge-api-lps5.onrender.com/api/v1";
 const params = new URLSearchParams(location.search);
 const API_BASE = params.get("api") || DEFAULT_API_BASE;
 
