@@ -3,8 +3,8 @@ package middleware
 
 import (
 	"net/http"
+	"string"
 	"time"
-
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -39,6 +39,36 @@ func Logger(log *zap.Logger) gin.HandlerFunc {
 }
 
 // Recovery recovers from panics, logs them via Zap, and returns a 500.
+// CORS allows a browser-based frontend hosted on a different origin to call
+// this API. allowedOrigins is a comma-separated list from ATS_CORS_ORIGINS
+// (e.g. "https://your-frontend.vercel.app,http://localhost:5500"). If empty,
+// it defaults to "*" (any origin) — fine for local/dev, tighten it in prod.
+func CORS(allowedOrigins string) gin.HandlerFunc {
+	list := map[string]bool{}
+	for _, o := range strings.Split(allowedOrigins, ",") {
+		o = strings.TrimSpace(o)
+		if o != "" {
+			list[o] = true
+		}
+	}
+	allowAll := len(list) == 0
+
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		if origin != "" && (allowAll || list[origin]) {
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Vary", "Origin")
+			c.Header("Access-Control-Allow-Credentials", "true")
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		}
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	}
+}
 func Recovery(log *zap.Logger) gin.HandlerFunc {
 	return gin.CustomRecoveryWithWriter(nil, func(c *gin.Context, err any) {
 		log.Error("panic recovered",
