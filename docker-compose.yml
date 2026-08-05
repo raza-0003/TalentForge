@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_USER: ats
       POSTGRES_PASSWORD: ats
-      POSTGRES_DB: ats
+      POSTGRES_DB: ats_i6bp
     ports:
       - "5433:5432" # host 5433 -> container 5432 (avoids clashing with a native Postgres on 5432)
     volumes:
