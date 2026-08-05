@@ -112,6 +112,7 @@ func run() error {
 	}
 	router := gin.New()
 	router.Use(middleware.Logger(log), middleware.Recovery(log))
+	router.Use(middleware.CORS(os.Getenv("ATS_CORS_ORIGINS")))
 	handlers.Register(router, tm)
 
 	srv := &http.Server{
