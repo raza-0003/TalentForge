@@ -1,1 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TalentForge — Jobs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --coal:#161412;
+    --coal-2:#1e1b18;
+    --panel:#242019;
+    --ember:#ff6a2b;
+    --ember-dim:#c94f1c;
+    --steel:#5c7c99;
+    --ash:#8b8478;
+    --paper:#f2ede2;
+    --ok:#7fae6a;
+    --warn:#e0b04a;
+    --bad:#d9604f;
+    --radius:3px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(255,106,43,.10), transparent 60%),
+      var(--coal);
+    color:var(--paper);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+  }
+  h1,h2,h3,.brand{font-family:'Space Grotesk',sans-serif;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  a{color:inherit;}
 
+  /* ---------- layout shell ---------- */
+  header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 28px;border-bottom:1px solid #33302a;
+    position:sticky;top:0;background:rgba(22,20,18,.92);backdrop-filter:blur(6px);z-index:20;
+  }
+  .brand{font-size:20px;font-weight:700;letter-spacing:.02em;display:flex;align-items:center;gap:10px;}
+  .brand .mark{
+    width:26px;height:26px;border-radius:2px;
+    background:linear-gradient(135deg,var(--ember),var(--ember-dim));
+    display:inline-block;position:relative;flex:none;
+  }
+  .brand .mark::after{
+    content:"";position:absolute;inset:6px;background:var(--coal);clip-path:polygon(50% 0,100% 100%,0 100%);
+  }
+  nav{display:flex;gap:10px;align-items:center;}
+  button, .btn{
+    font-family:'Inter',sans-serif;font-weight:600;font-size:13.5px;
+    border:1px solid #464036;background:var(--panel);color:var(--paper);
+    padding:9px 16px;border-radius:var(--radius);cursor:pointer;letter-spacing:.01em;
+    transition:border-color .15s, transform .1s;
+  }
+  button:hover{border-color:var(--ember);}
+  button:active{transform:translateY(1px);}
+  button.primary{background:var(--ember);border-color:var(--ember);color:#1a1108;}
+  button.primary:hover{background:#ff7d45;}
+  button.ghost{background:transparent;border-color:transparent;color:var(--ash);}
+  button.small{padding:5px 10px;font-size:12px;}
+  button:disabled{opacity:.45;cursor:not-allowed;}
+
+  main{max-width:1040px;margin:0 auto;padding:32px 24px 80px;}
+  .hero{padding:34px 0 26px;border-bottom:1px solid #2c2822;margin-bottom:26px;}
+  .hero .eyebrow{color:var(--ember);font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;}
+  .hero h1{font-size:34px;margin:8px 0 6px;line-height:1.15;}
+  .hero p{color:var(--ash);max-width:560px;font-size:15px;line-height:1.5;}
+
+  .toolbar{display:flex;gap:10px;margin-bottom:22px;flex-wrap:wrap;}
+  .toolbar input{
+    flex:1;min-width:200px;background:var(--panel);border:1px solid #3a352c;color:var(--paper);
+    padding:10px 12px;border-radius:var(--radius);font-family:inherit;font-size:14px;
+  }
+  .toolbar input:focus{outline:none;border-color:var(--ember);}
+
+  .job-list{display:flex;flex-direction:column;gap:1px;background:#2c2822;border:1px solid #2c2822;border-radius:4px;overflow:hidden;}
+  .job-row{
+    background:var(--coal-2);padding:18px 20px;display:flex;justify-content:space-between;gap:16px;
+    cursor:pointer;transition:background .12s;align-items:center;
+  }
+  .job-row:hover{background:#26221c;}
+  .job-title{font-weight:600;font-size:15.5px;}
+  .job-meta{color:var(--ash);font-size:13px;margin-top:4px;}
+  .job-status{
+    font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;
+    padding:4px 8px;border-radius:2px;flex:none;
+  }
+  .job-status.open{color:var(--ok);border:1px solid var(--ok);}
+  .job-status.closed{color:var(--ash);border:1px solid #4a453b;}
+  .empty{color:var(--ash);padding:30px 4px;font-size:14px;}
+
+  /* ---------- heat gauge (status stepper) — signature element ---------- */
+  .gauge{display:flex;align-items:center;gap:2px;margin:6px 0 14px;}
+  .gauge .seg{flex:1;height:6px;background:#332e26;border-radius:2px;position:relative;}
+  .gauge .seg.lit{background:linear-gradient(90deg,var(--ember-dim),var(--ember));}
+  .gauge .seg.now{box-shadow:0 0 8px 1px rgba(255,106,43,.6);}
+  .gauge-labels{display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--ash);letter-spacing:.04em;text-transform:uppercase;}
+  .gauge-labels span.active{color:var(--ember);}
+
+  /* ---------- modal ---------- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(10,9,8,.72);display:none;align-items:flex-start;justify-content:center;
+    padding:6vh 16px;overflow:auto;z-index:50;
+  }
+  .overlay.show{display:flex;}
+  .modal{
+    background:var(--coal-2);border:1px solid #3a352c;border-radius:6px;max-width:560px;width:100%;
+    padding:26px 28px 28px;position:relative;
+  }
+  .modal h2{margin:0 0 4px;font-size:21px;}
+  .modal .sub{color:var(--ash);font-size:13px;margin-bottom:18px;}
+  .modal .close{position:absolute;top:16px;right:18px;background:none;border:none;color:var(--ash);font-size:20px;padding:2px 6px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12.5px;color:var(--ash);margin-bottom:5px;font-weight:600;}
+  .field input, .field textarea, .field select{
+    width:100%;background:var(--panel);border:1px solid #3a352c;color:var(--paper);
+    padding:10px 12px;border-radius:var(--radius);font-family:inherit;font-size:14px;
+  }
+  .field textarea{resize:vertical;min-height:80px;}
+  .field input:focus, .field textarea:focus, .field select:focus{outline:none;border-color:var(--ember);}
+  .row{display:flex;gap:10px;}
+  .row>*{flex:1;}
+  .modal-actions{display:flex;gap:10px;margin-top:18px;}
+  .tabs{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid #33302a;}
+  .tabs button{border:none;background:none;border-radius:0;padding:9px 4px;margin-right:18px;color:var(--ash);border-bottom:2px solid transparent;}
+  .tabs button.active{color:var(--paper);border-bottom-color:var(--ember);}
+  .msg{font-size:13px;padding:9px 12px;border-radius:3px;margin-bottom:14px;}
+  .msg.err{background:rgba(217,96,79,.12);color:#f0a89c;border:1px solid rgba(217,96,79,.4);}
+  .msg.ok{background:rgba(127,174,106,.12);color:#b7d6a8;border:1px solid rgba(127,174,106,.4);}
+
+  /* ---------- dashboard ---------- */
+  .dash-tabs{display:flex;gap:6px;margin-bottom:22px;flex-wrap:wrap;}
+  .dash-tabs button{background:var(--panel);}
+  .dash-tabs button.active{background:var(--ember);color:#1a1108;border-color:var(--ember);}
+  .card{background:var(--coal-2);border:1px solid #2c2822;border-radius:5px;padding:18px 20px;margin-bottom:12px;}
+  .card h3{margin:0 0 4px;font-size:15.5px;}
+  .card .meta{color:var(--ash);font-size:12.5px;}
+  .pill{
+    font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.06em;
+    padding:3px 8px;border-radius:2px;border:1px solid var(--steel);color:var(--steel);display:inline-block;
+  }
+  .resume-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #2c2822;}
+  .resume-item:last-child{border-bottom:none;}
+  footer{text-align:center;color:var(--ash);font-size:12px;padding:30px 0;border-top:1px solid #2c2822;font-family:'JetBrains Mono',monospace;}
+  .cfg-note{color:var(--ash);font-size:11.5px;font-family:'JetBrains Mono',monospace;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><span class="mark"></span>TalentForge</div>
+  <nav id="navArea"></nav>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="eyebrow">Open roles</div>
+    <h1>Find work worth forging toward.</h1>
+    <p>Browse open positions, apply with a resume on file, and track every application from first click to signed offer.</p>
+  </div>
+
+  <div class="toolbar">
+    <input id="searchBox" type="text" placeholder="Search job titles… (e.g. backend, go, product)">
+    <button id="searchBtn">Search</button>
+  </div>
+
+  <div id="jobList" class="job-list"></div>
+</main>
+
+<footer>talentforge · candidate portal</footer>
+
+<!-- Auth modal -->
+<div class="overlay" id="authOverlay">
+  <div class="modal">
+    <button class="close" data-close="authOverlay">&times;</button>
+    <div class="tabs">
+      <button id="tabLogin" class="active">Log in</button>
+      <button id="tabSignup">Sign up</button>
+    </div>
+    <div id="authMsg"></div>
+
+    <form id="loginForm">
+      <div class="field"><label>Email</label><input required type="email" id="loginEmail"></div>
+      <div class="field"><label>Password</label><input required type="password" id="loginPassword"></div>
+      <div class="modal-actions"><button type="submit" class="primary">Log in</button></div>
+    </form>
+
+    <form id="signupForm" style="display:none">
+      <div class="field"><label>Full name</label><input required type="text" id="suName"></div>
+      <div class="field"><label>Email</label><input required type="email" id="suEmail"></div>
+      <div class="field"><label>Password</label><input required type="password" id="suPassword" minlength="8"></div>
+      <div class="modal-actions"><button type="submit" class="primary">Create account</button></div>
+    </form>
+  </div>
+</div>
+
+<!-- Job detail modal -->
+<div class="overlay" id="jobOverlay">
+  <div class="modal">
+    <button class="close" data-close="jobOverlay">&times;</button>
+    <div id="jobDetail"></div>
+  </div>
+</div>
+
+<!-- Dashboard modal -->
+<div class="overlay" id="dashOverlay">
+  <div class="modal" style="max-width:680px;">
+    <button class="close" data-close="dashOverlay">&times;</button>
+    <h2>My forge</h2>
+    <div class="dash-tabs">
+      <button data-dash="applications" class="active">Applications</button>
+      <button data-dash="profile">Profile</button>
+      <button data-dash="resumes">Resumes</button>
+      <button data-dash="offers">Offers</button>
+    </div>
+    <div id="dashMsg"></div>
+    <div id="dashBody"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Config: point this at your deployed backend.
+   Override at runtime via ?api=https://your-backend-url in the URL,
+   or just edit the default below before deploying.
+   ============================================================ */
+const DEFAULT_API_BASE = "http://localhost:8080/api/v1";
+const params = new URLSearchParams(location.search);
+const API_BASE = params.get("api") || DEFAULT_API_BASE;
+
+// In-memory only — no localStorage/sessionStorage (kept simple & safe by default).
+// If you want sessions to survive a page reload on your deployed site,
+// swap this for localStorage once it's running on your own domain.
+let state = { access: null, refresh: null, user: null };
+
+const $ = (sel, root=document) => root.querySelector(sel);
+const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
+
+async function api(path, opts={}) {
+  const headers = opts.headers || {};
+  if (!(opts.body instanceof FormData)) headers["Content-Type"] = "application/json";
+  if (state.access) headers["Authorization"] = "Bearer " + state.access;
+  const res = await fetch(API_BASE + path, { ...opts, headers });
+  let data = null;
+  try { data = await res.json(); } catch(e) {}
+  if (!res.ok) {
+    const errMsg = (data && (data.error || data.message)) || `Request failed (${res.status})`;
+    throw new Error(errMsg);
+  }
+  return data;
+}
+
+/* ---------------- nav / auth state ---------------- */
+function renderNav() {
+  const nav = $("#navArea");
+  if (state.user) {
+    nav.innerHTML = `
+      <span class="cfg-note" style="margin-right:8px;">${state.user.full_name || state.user.email} · ${state.user.role}</span>
+      <button id="btnDash">My forge</button>
+      <button class="ghost" id="btnLogout">Log out</button>`;
+    $("#btnDash").onclick = () => openDash();
+    $("#btnLogout").onclick = logout;
+  } else {
+    nav.innerHTML = `<button id="btnLogin" class="primary">Log in / Sign up</button>`;
+    $("#btnLogin").onclick = () => openOverlay("authOverlay");
+  }
+}
+
+function logout() {
+  if (state.refresh) api("/auth/logout", { method:"POST", body: JSON.stringify({ refresh_token: state.refresh }) }).catch(()=>{});
+  state = { access:null, refresh:null, user:null };
+  renderNav();
+}
+
+async function loadMe() {
+  try { state.user = await api("/me"); renderNav(); } catch(e) { state = {access:null,refresh:null,user:null}; renderNav(); }
+}
+
+/* ---------------- overlays ---------------- */
+function openOverlay(id){ $("#"+id).classList.add("show"); }
+function closeOverlay(id){ $("#"+id).classList.remove("show"); }
+$$("[data-close]").forEach(b => b.onclick = () => closeOverlay(b.dataset.close));
+$$(".overlay").forEach(o => o.addEventListener("click", e => { if (e.target === o) o.classList.remove("show"); }));
+
+/* ---------------- auth ---------------- */
+$("#tabLogin").onclick = () => { $("#tabLogin").classList.add("active"); $("#tabSignup").classList.remove("active"); $("#loginForm").style.display="block"; $("#signupForm").style.display="none"; };
+$("#tabSignup").onclick = () => { $("#tabSignup").classList.add("active"); $("#tabLogin").classList.remove("active"); $("#signupForm").style.display="block"; $("#loginForm").style.display="none"; };
+
+function authMsg(text, ok=false) {
+  $("#authMsg").innerHTML = text ? `<div class="msg ${ok?'ok':'err'}">${text}</div>` : "";
+}
+
+$("#loginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  authMsg("");
+  try {
+    const data = await api("/auth/login", { method:"POST", body: JSON.stringify({
+      email: $("#loginEmail").value, password: $("#loginPassword").value
+    })});
+    state.access = data.tokens.access_token;
+    state.refresh = data.tokens.refresh_token;
+    state.user = data.user;
+    renderNav();
+    closeOverlay("authOverlay");
+  } catch(err){ authMsg(err.message); }
+});
+
+$("#signupForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  authMsg("");
+  try {
+    await api("/auth/signup", { method:"POST", body: JSON.stringify({
+      full_name: $("#suName").value, email: $("#suEmail").value, password: $("#suPassword").value
+    })});
+    authMsg("Account created — logging you in…", true);
+    const data = await api("/auth/login", { method:"POST", body: JSON.stringify({
+      email: $("#suEmail").value, password: $("#suPassword").value
+    })});
+    state.access = data.tokens.access_token;
+    state.refresh = data.tokens.refresh_token;
+    state.user = data.user;
+    renderNav();
+    closeOverlay("authOverlay");
+  } catch(err){ authMsg(err.message); }
+});
+
+/* ---------------- jobs ---------------- */
+async function loadJobs(q="") {
+  const list = $("#jobList");
+  list.innerHTML = `<div class="empty">Loading roles…</div>`;
+  try {
+    const qs = q ? `?status=open&q=${encodeURIComponent(q)}` : `?status=open`;
+    const data = await api("/jobs" + qs);
+    const jobs = data.items || data.jobs || data.data || [];
+    if (!jobs.length) { list.innerHTML = `<div class="empty">No open roles match that search right now.</div>`; return; }
+    list.innerHTML = "";
+    jobs.forEach(job => {
+      const row = document.createElement("div");
+      row.className = "job-row";
+      row.innerHTML = `
+        <div>
+          <div class="job-title">${escapeHtml(job.title || "Untitled role")}</div>
+          <div class="job-meta">${escapeHtml(job.location || "Location flexible")} · ${escapeHtml(job.employment_type || "")}</div>
+        </div>
+        <span class="job-status ${job.status === 'open' ? 'open':'closed'}">${job.status || 'open'}</span>`;
+      row.onclick = () => openJob(job.id);
+      list.appendChild(row);
+    });
+  } catch(err) {
+    list.innerHTML = `<div class="empty">Couldn't reach the API at <span class="mono">${API_BASE}</span>. ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function openJob(id) {
+  openOverlay("jobOverlay");
+  const box = $("#jobDetail");
+  box.innerHTML = `<div class="empty">Loading…</div>`;
+  try {
+    const job = await api("/jobs/" + id);
+    box.innerHTML = `
+      <h2>${escapeHtml(job.title)}</h2>
+      <div class="sub">${escapeHtml(job.location || "")} · ${escapeHtml(job.employment_type || "")} · <span class="pill">${job.status}</span></div>
+      <div style="white-space:pre-wrap;font-size:14px;line-height:1.6;color:#d8d2c4;margin:16px 0;">${escapeHtml(job.description || "No description provided.")}</div>
+      <div id="applyMsg"></div>
+      <div class="modal-actions">
+        <button class="primary" id="applyBtn" ${job.status !== 'open' ? 'disabled' : ''}>Apply for this role</button>
+      </div>`;
+    $("#applyBtn").onclick = () => applyToJob(job.id);
+  } catch(err) {
+    box.innerHTML = `<div class="msg err">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function applyToJob(jobId) {
+  if (!state.user) { closeOverlay("jobOverlay"); openOverlay("authOverlay"); return; }
+  if (state.user.role !== "candidate") {
+    $("#applyMsg").innerHTML = `<div class="msg err">Only candidate accounts can apply. You're signed in as ${state.user.role}.</div>`;
+    return;
+  }
+  try {
+    await api(`/jobs/${jobId}/apply`, { method:"POST", body: JSON.stringify({}) });
+    $("#applyMsg").innerHTML = `<div class="msg ok">Application submitted. Track it under "My forge → Applications".</div>`;
+  } catch(err) {
+    $("#applyMsg").innerHTML = `<div class="msg err">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+$("#searchBtn").onclick = () => loadJobs($("#searchBox").value.trim());
+$("#searchBox").addEventListener("keydown", e => { if (e.key === "Enter") loadJobs($("#searchBox").value.trim()); });
+
+/* ---------------- dashboard ---------------- */
+const STAGES = ["applied","screening","interview","offer","hired"];
+
+function heatGauge(status) {
+  const idx = Math.max(0, STAGES.indexOf((status||"applied").toLowerCase()));
+  const segs = STAGES.map((s,i) => `<div class="seg ${i<=idx?'lit':''} ${i===idx?'now':''}"></div>`).join("");
+  const labels = STAGES.map((s,i) => `<span class="${i===idx?'active':''}">${s}</span>`).join("");
+  return `<div class="gauge">${segs}</div><div class="gauge-labels">${labels}</div>`;
+}
+
+function dashMsg(text, ok=false) {
+  $("#dashMsg").innerHTML = text ? `<div class="msg ${ok?'ok':'err'}">${text}</div>` : "";
+}
+
+function openDash() {
+  openOverlay("dashOverlay");
+  setDashTab("applications");
+}
+
+$$(".dash-tabs button").forEach(b => b.onclick = () => setDashTab(b.dataset.dash));
+
+function setDashTab(tab) {
+  $$(".dash-tabs button").forEach(b => b.classList.toggle("active", b.dataset.dash === tab));
+  dashMsg("");
+  if (tab === "applications") renderApplications();
+  if (tab === "profile") renderProfile();
+  if (tab === "resumes") renderResumes();
+  if (tab === "offers") renderOffers();
+}
+
+async function renderApplications() {
+  const body = $("#dashBody");
+  body.innerHTML = `<div class="empty">Loading…</div>`;
+  try {
+    const data = await api("/candidate/applications");
+    const apps = data.items || data.applications || data.data || [];
+    if (!apps.length) { body.innerHTML = `<div class="empty">No applications yet — apply to a role from the job board.</div>`; return; }
+    body.innerHTML = apps.map(a => `
+      <div class="card">
+        <h3>${escapeHtml(a.job_title || a.job?.title || ("Application #" + a.id))}</h3>
+        <div class="meta">Applied ${a.created_at ? new Date(a.created_at).toLocaleDateString() : ""}</div>
+        ${heatGauge(a.status)}
+      </div>`).join("");
+  } catch(err) { body.innerHTML = `<div class="msg err">${escapeHtml(err.message)}</div>`; }
+}
+
+async function renderProfile() {
+  const body = $("#dashBody");
+  body.innerHTML = `<div class="empty">Loading…</div>`;
+  let profile = {};
+  try { profile = await api("/candidate/profile"); } catch(e) {}
+  body.innerHTML = `
+    <div class="row">
+      <div class="field"><label>Phone</label><input id="pfPhone" value="${escapeAttr(profile.phone)}"></div>
+      <div class="field"><label>Headline</label><input id="pfHeadline" value="${escapeAttr(profile.headline)}"></div>
+    </div>
+    <div class="field"><label>Location</label><input id="pfLocation" value="${escapeAttr(profile.location)}"></div>
+    <div class="field"><label>Skills (comma separated)</label><input id="pfSkills" value="${escapeAttr((profile.skills||[]).join(', '))}"></div>
+    <div class="modal-actions"><button class="primary" id="pfSave">Save profile</button></div>`;
+  $("#pfSave").onclick = async () => {
+    try {
+      await api("/candidate/profile", { method:"PUT", body: JSON.stringify({
+        phone: $("#pfPhone").value,
+        headline: $("#pfHeadline").value,
+        location: $("#pfLocation").value,
+        skills: $("#pfSkills").value.split(",").map(s=>s.trim()).filter(Boolean)
+      })});
+      dashMsg("Profile saved.", true);
+    } catch(err) { dashMsg(err.message); }
+  };
+}
+
+async function renderResumes() {
+  const body = $("#dashBody");
+  body.innerHTML = `<div class="empty">Loading…</div>`;
+  try {
+    const data = await api("/candidate/resumes");
+    const resumes = data.items || data.resumes || data.data || [];
+    body.innerHTML = `
+      <div class="field">
+        <label>Upload a resume (pdf, doc, docx, txt, md, rtf — max 10 MB)</label>
+        <input type="file" id="resumeFile" accept=".pdf,.doc,.docx,.txt,.md,.rtf">
+      </div>
+      <div class="modal-actions"><button class="primary" id="resumeUpload">Upload</button></div>
+      <div style="margin-top:18px;">
+        ${resumes.length ? resumes.map(r => `
+          <div class="resume-item">
+            <div>
+              <div>${escapeHtml(r.filename || r.file_name || ('Resume #' + r.id))} ${r.is_primary ? '<span class="pill">primary</span>' : ''}</div>
+              <div class="meta">${r.parsed_data ? 'parsed' : (r.status||'')}</div>
+            </div>
+            ${!r.is_primary ? `<button class="small" data-primary="${r.id}">Set primary</button>` : ''}
+          </div>`).join("") : '<div class="empty">No resumes uploaded yet.</div>'}
+      </div>`;
+    $("#resumeUpload").onclick = async () => {
+      const f = $("#resumeFile").files[0];
+      if (!f) { dashMsg("Choose a file first."); return; }
+      const fd = new FormData();
+      fd.append("file", f);
+      try { await api("/candidate/resumes", { method:"POST", body: fd }); dashMsg("Resume uploaded — parsing in the background.", true); renderResumes(); }
+      catch(err) { dashMsg(err.message); }
+    };
+    $$("[data-primary]").forEach(b => b.onclick = async () => {
+      try { await api(`/candidate/resumes/${b.dataset.primary}/primary`, { method:"POST" }); renderResumes(); }
+      catch(err) { dashMsg(err.message); }
+    });
+  } catch(err) { body.innerHTML = `<div class="msg err">${escapeHtml(err.message)}</div>`; }
+}
+
+async function renderOffers() {
+  const body = $("#dashBody");
+  body.innerHTML = `<div class="empty">Loading…</div>`;
+  try {
+    const data = await api("/candidate/offers");
+    const offers = data.items || data.offers || data.data || [];
+    if (!offers.length) { body.innerHTML = `<div class="empty">No offers yet.</div>`; return; }
+    body.innerHTML = offers.map(o => `
+      <div class="card">
+        <h3>${escapeHtml(o.position_title || 'Offer #' + o.id)}</h3>
+        <div class="meta">${o.salary_amount ? (o.salary_currency||'') + ' ' + o.salary_amount : ''} · <span class="pill">${o.status}</span></div>
+        <div class="modal-actions">
+          ${o.status === 'sent' ? `
+            <button class="primary small" data-accept="${o.id}">Accept</button>
+            <button class="small" data-decline="${o.id}">Decline</button>` : ''}
+          <button class="small" data-download="${o.id}">Download PDF</button>
+        </div>
+      </div>`).join("");
+    $$("[data-accept]").forEach(b => b.onclick = async () => { try { await api(`/offers/${b.dataset.accept}/accept`, {method:"POST"}); renderOffers(); } catch(e){ dashMsg(e.message); } });
+    $$("[data-decline]").forEach(b => b.onclick = async () => { try { await api(`/offers/${b.dataset.decline}/decline`, {method:"POST"}); renderOffers(); } catch(e){ dashMsg(e.message); } });
+    $$("[data-download]").forEach(b => b.onclick = () => window.open(`${API_BASE}/offers/${b.dataset.download}/download`, "_blank"));
+  } catch(err) { body.innerHTML = `<div class="msg err">${escapeHtml(err.message)}</div>`; }
+}
+
+/* ---------------- utils ---------------- */
+function escapeHtml(s){ return (s??"").toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s){ return escapeHtml(s); }
+
+/* ---------------- init ---------------- */
+renderNav();
+loadJobs();
+</script>
+</body>
+</html>
