@@ -148,6 +148,16 @@
   .resume-item:last-child{border-bottom:none;}
   footer{text-align:center;color:var(--ash);font-size:12px;padding:30px 0;border-top:1px solid #2c2822;font-family:'JetBrains Mono',monospace;}
   .cfg-note{color:var(--ash);font-size:11.5px;font-family:'JetBrains Mono',monospace;}
+  .app-item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #2c2822;}
+  .app-item:last-child{border-bottom:none;}
+  .app-item .who{font-weight:600;font-size:14px;}
+  .app-item .meta{color:var(--ash);font-size:12px;margin-top:2px;}
+  select.statusSelect{background:var(--panel);color:var(--paper);border:1px solid #3a352c;border-radius:3px;padding:6px 8px;font-size:12.5px;font-family:inherit;}
+  .subhead{font-size:12.5px;color:var(--ash);text-transform:uppercase;letter-spacing:.06em;font-family:'JetBrains Mono',monospace;margin:18px 0 8px;}
+  .back-link{background:none;border:none;color:var(--ember);font-size:12.5px;padding:0;margin-bottom:12px;cursor:pointer;font-family:'JetBrains Mono',monospace;}
+  .job-manage-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #2c2822;gap:10px;}
+  .job-manage-row:last-child{border-bottom:none;}
+  .job-manage-row .actions{display:flex;gap:6px;flex-wrap:wrap;}
 </style>
 </head>
 <body>
@@ -211,13 +221,8 @@
 <div class="overlay" id="dashOverlay">
   <div class="modal" style="max-width:680px;">
     <button class="close" data-close="dashOverlay">&times;</button>
-    <h2>My forge</h2>
-    <div class="dash-tabs">
-      <button data-dash="applications" class="active">Applications</button>
-      <button data-dash="profile">Profile</button>
-      <button data-dash="resumes">Resumes</button>
-      <button data-dash="offers">Offers</button>
-    </div>
+    <h2 id="dashTitle">My forge</h2>
+    <div class="dash-tabs" id="dashTabs"></div>
     <div id="dashMsg"></div>
     <div id="dashBody"></div>
   </div>
@@ -229,7 +234,7 @@
    Override at runtime via ?api=https://your-backend-url in the URL,
    or just edit the default below before deploying.
    ============================================================ */
-const DEFAULT_API_BASE = "https://talentforge-api-lps5.onrender.com/api/v1";
+const DEFAULT_API_BASE = "http://localhost:8080/api/v1";
 const params = new URLSearchParams(location.search);
 const API_BASE = params.get("api") || DEFAULT_API_BASE;
 
@@ -407,20 +412,46 @@ function dashMsg(text, ok=false) {
   $("#dashMsg").innerHTML = text ? `<div class="msg ${ok?'ok':'err'}">${text}</div>` : "";
 }
 
-function openDash() {
-  openOverlay("dashOverlay");
-  setDashTab("applications");
+const CANDIDATE_TABS = [
+  { id:"applications", label:"Applications" },
+  { id:"profile", label:"Profile" },
+  { id:"resumes", label:"Resumes" },
+  { id:"offers", label:"Offers" },
+];
+const RECRUITER_TABS = [
+  { id:"jobs", label:"Jobs" },
+  { id:"candidates", label:"Search candidates" },
+];
+const ADMIN_TABS = [
+  { id:"admin", label:"Admin" },
+];
+
+function tabsForRole() {
+  if (!state.user) return CANDIDATE_TABS;
+  if (state.user.role === "admin") return [...RECRUITER_TABS, ...ADMIN_TABS];
+  if (state.user.role === "recruiter") return RECRUITER_TABS;
+  return CANDIDATE_TABS;
 }
 
-$$(".dash-tabs button").forEach(b => b.onclick = () => setDashTab(b.dataset.dash));
+function openDash() {
+  openOverlay("dashOverlay");
+  $("#dashTitle").textContent = (state.user.role === "recruiter" || state.user.role === "admin") ? "Recruiter console" : "My forge";
+  const tabs = tabsForRole();
+  $("#dashTabs").innerHTML = tabs.map((t,i) => `<button data-dash="${t.id}" class="${i===0?'active':''}">${t.label}</button>`).join("");
+  $$("#dashTabs button").forEach(b => b.onclick = () => setDashTab(b.dataset.dash));
+  setDashTab(tabs[0].id);
+}
 
 function setDashTab(tab) {
-  $$(".dash-tabs button").forEach(b => b.classList.toggle("active", b.dataset.dash === tab));
+  $$("#dashTabs button").forEach(b => b.classList.toggle("active", b.dataset.dash === tab));
   dashMsg("");
   if (tab === "applications") renderApplications();
   if (tab === "profile") renderProfile();
   if (tab === "resumes") renderResumes();
   if (tab === "offers") renderOffers();
+  if (tab === "jobs") renderMyJobs();
+  if (tab === "candidates") renderCandidateSearch();
+  if (tab === "admin") renderAdmin();
 }
 
 async function renderApplications() {
@@ -523,6 +554,216 @@ async function renderOffers() {
     $$("[data-accept]").forEach(b => b.onclick = async () => { try { await api(`/offers/${b.dataset.accept}/accept`, {method:"POST"}); renderOffers(); } catch(e){ dashMsg(e.message); } });
     $$("[data-decline]").forEach(b => b.onclick = async () => { try { await api(`/offers/${b.dataset.decline}/decline`, {method:"POST"}); renderOffers(); } catch(e){ dashMsg(e.message); } });
     $$("[data-download]").forEach(b => b.onclick = () => window.open(`${API_BASE}/offers/${b.dataset.download}/download`, "_blank"));
+  } catch(err) { body.innerHTML = `<div class="msg err">${escapeHtml(err.message)}</div>`; }
+}
+
+/* ---------------- recruiter: jobs ---------------- */
+async function renderMyJobs() {
+  const body = $("#dashBody");
+  body.innerHTML = `<div class="empty">Loading…</div>`;
+  try {
+    const data = await api("/jobs");
+    const jobs = data.items || data.jobs || data.data || [];
+    body.innerHTML = `
+      <div class="subhead">Post a new role</div>
+      <div class="field"><label>Title</label><input id="njTitle" placeholder="Backend Engineer"></div>
+      <div class="row">
+        <div class="field"><label>Location</label><input id="njLocation" placeholder="Remote"></div>
+        <div class="field"><label>Employment type</label>
+          <select id="njType">
+            <option value="full_time">Full-time</option>
+            <option value="part_time">Part-time</option>
+            <option value="contract">Contract</option>
+            <option value="internship">Internship</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>Description</label><textarea id="njDesc" placeholder="What the role involves…"></textarea></div>
+      <div class="modal-actions"><button class="primary" id="njSubmit">Post job</button></div>
+      <div class="subhead">Existing roles</div>
+      <div id="jobsListManage">
+        ${jobs.length ? jobs.map(j => `
+          <div class="job-manage-row">
+            <div>
+              <div class="job-title">${escapeHtml(j.title)}</div>
+              <div class="job-meta">${escapeHtml(j.location||"")} · <span class="pill">${j.status}</span></div>
+            </div>
+            <div class="actions">
+              <button class="small" data-view-apps="${j.id}">Applications</button>
+              ${j.status === 'open' ? `<button class="small" data-close-job="${j.id}">Close</button>` : ''}
+            </div>
+          </div>`).join("") : '<div class="empty">No roles posted yet.</div>'}
+      </div>`;
+    $("#njSubmit").onclick = async () => {
+      try {
+        await api("/jobs", { method:"POST", body: JSON.stringify({
+          title: $("#njTitle").value,
+          location: $("#njLocation").value,
+          employment_type: $("#njType").value,
+          description: $("#njDesc").value
+        })});
+        dashMsg("Job posted.", true);
+        renderMyJobs();
+      } catch(err) { dashMsg(err.message); }
+    };
+    $$("[data-close-job]").forEach(b => b.onclick = async () => {
+      try { await api(`/jobs/${b.dataset.closeJob}/close`, { method:"POST" }); dashMsg("Job closed.", true); renderMyJobs(); }
+      catch(err) { dashMsg(err.message); }
+    });
+    $$("[data-view-apps]").forEach(b => b.onclick = () => renderJobApplications(b.dataset.viewApps));
+  } catch(err) { body.innerHTML = `<div class="msg err">${escapeHtml(err.message)}</div>`; }
+}
+
+async function renderJobApplications(jobId) {
+  const body = $("#dashBody");
+  body.innerHTML = `<div class="empty">Loading…</div>`;
+  try {
+    const data = await api(`/jobs/${jobId}/applications`);
+    const apps = data.items || data.applications || data.data || [];
+    body.innerHTML = `
+      <button class="back-link" id="backToJobs">&larr; Back to jobs</button>
+      <div class="subhead">Applications</div>
+      ${apps.length ? apps.map(a => `
+        <div class="card">
+          <h3>${escapeHtml(a.candidate_name || a.candidate?.full_name || ('Applicant #' + a.id))}</h3>
+          <div class="meta">Applied ${a.created_at ? new Date(a.created_at).toLocaleDateString() : ""} · status: <span class="pill">${a.status}</span></div>
+          <div class="modal-actions">
+            <select class="statusSelect" data-status-for="${a.id}">
+              ${STAGES.map(s => `<option value="${s}" ${s===a.status?'selected':''}>${s}</option>`).join("")}
+              <option value="rejected" ${a.status==='rejected'?'selected':''}>rejected</option>
+            </select>
+            <button class="small" data-save-status="${a.id}">Update status</button>
+            <button class="small" data-schedule="${a.id}">Schedule interview</button>
+            <button class="small" data-offer="${a.id}">Create offer</button>
+          </div>
+          <div id="extra-${a.id}"></div>
+        </div>`).join("") : '<div class="empty">No applications for this role yet.</div>'}`;
+    $("#backToJobs").onclick = renderMyJobs;
+    $$("[data-save-status]").forEach(b => b.onclick = async () => {
+      const id = b.dataset.saveStatus;
+      const status = $(`[data-status-for="${id}"]`).value;
+      try { await api(`/applications/${id}/status`, { method:"PATCH", body: JSON.stringify({ status }) }); dashMsg("Status updated.", true); renderJobApplications(jobId); }
+      catch(err) { dashMsg(err.message); }
+    });
+    $$("[data-schedule]").forEach(b => b.onclick = () => {
+      const id = b.dataset.schedule;
+      $(`#extra-${id}`).innerHTML = `
+        <div class="field"><label>Interviewer user ID</label><input id="ivInterviewer-${id}" placeholder="your own user id, or another recruiter's"></div>
+        <div class="field"><label>Scheduled at (e.g. 2026-08-10T14:00:00Z)</label><input id="ivWhen-${id}" placeholder="YYYY-MM-DDTHH:MM:SSZ"></div>
+        <div class="modal-actions"><button class="small primary" data-do-schedule="${id}">Confirm interview</button></div>`;
+      $(`[data-do-schedule="${id}"]`).onclick = async () => {
+        try {
+          await api(`/applications/${id}/interviews`, { method:"POST", body: JSON.stringify({
+            interviewer_id: $(`#ivInterviewer-${id}`).value,
+            scheduled_at: $(`#ivWhen-${id}`).value
+          })});
+          dashMsg("Interview scheduled.", true);
+          $(`#extra-${id}`).innerHTML = "";
+        } catch(err) { dashMsg(err.message); }
+      };
+    });
+    $$("[data-offer]").forEach(b => b.onclick = () => {
+      const id = b.dataset.offer;
+      $(`#extra-${id}`).innerHTML = `
+        <div class="row">
+          <div class="field"><label>Position title</label><input id="ofTitle-${id}"></div>
+          <div class="field"><label>Salary amount</label><input id="ofSalary-${id}" type="number"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Currency</label><input id="ofCurrency-${id}" placeholder="USD" value="USD"></div>
+          <div class="field"><label>Start date (YYYY-MM-DD)</label><input id="ofStart-${id}"></div>
+        </div>
+        <div class="modal-actions">
+          <button class="small primary" data-do-offer="${id}">Create offer</button>
+        </div>`;
+      $(`[data-do-offer="${id}"]`).onclick = async () => {
+        try {
+          const offer = await api(`/applications/${id}/offers`, { method:"POST", body: JSON.stringify({
+            position_title: $(`#ofTitle-${id}`).value,
+            salary_amount: Number($(`#ofSalary-${id}`).value) || undefined,
+            salary_currency: $(`#ofCurrency-${id}`).value,
+            start_date: $(`#ofStart-${id}`).value || undefined
+          })});
+          await api(`/offers/${offer.id}/send`, { method:"POST" });
+          dashMsg("Offer created and sent.", true);
+          $(`#extra-${id}`).innerHTML = "";
+        } catch(err) { dashMsg(err.message); }
+      };
+    });
+  } catch(err) { body.innerHTML = `<div class="msg err">${escapeHtml(err.message)}</div>`; }
+}
+
+/* ---------------- recruiter: candidate search ---------------- */
+async function renderCandidateSearch() {
+  const body = $("#dashBody");
+  body.innerHTML = `
+    <div class="field"><label>Skills (comma separated)</label><input id="csSkills" placeholder="Go, PostgreSQL"></div>
+    <div class="field"><label>Name / headline contains</label><input id="csQ" placeholder="optional"></div>
+    <div class="modal-actions"><button class="primary" id="csSearch">Search candidates</button></div>
+    <div id="csResults"></div>`;
+  $("#csSearch").onclick = async () => {
+    const results = $("#csResults");
+    results.innerHTML = `<div class="empty">Searching…</div>`;
+    try {
+      const skills = $("#csSkills").value.trim();
+      const q = $("#csQ").value.trim();
+      const params = new URLSearchParams();
+      if (skills) params.set("skills", skills);
+      if (q) params.set("q", q);
+      const data = await api("/candidates?" + params.toString());
+      const cands = data.items || data.candidates || data.data || [];
+      results.innerHTML = cands.length ? cands.map(c => `
+        <div class="card">
+          <h3>${escapeHtml(c.full_name || c.name || 'Candidate')}</h3>
+          <div class="meta">${escapeHtml(c.headline||"")} · ${escapeHtml((c.skills||[]).join(', '))}</div>
+        </div>`).join("") : `<div class="empty">No candidates matched.</div>`;
+    } catch(err) { results.innerHTML = `<div class="msg err">${escapeHtml(err.message)}</div>`; }
+  };
+}
+
+/* ---------------- admin ---------------- */
+async function renderAdmin() {
+  const body = $("#dashBody");
+  body.innerHTML = `<div class="empty">Loading…</div>`;
+  try {
+    const [recruiters, analytics] = await Promise.all([
+      api("/admin/recruiters").catch(()=>({items:[]})),
+      api("/admin/analytics").catch(()=>({}))
+    ]);
+    const recs = recruiters.items || recruiters.recruiters || recruiters.data || [];
+    body.innerHTML = `
+      <div class="subhead">Provision a recruiter</div>
+      <div class="row">
+        <div class="field"><label>Full name</label><input id="adName"></div>
+        <div class="field"><label>Email</label><input id="adEmail" type="email"></div>
+      </div>
+      <div class="field"><label>Temporary password</label><input id="adPassword" type="text"></div>
+      <div class="modal-actions"><button class="primary" id="adCreate">Create recruiter</button></div>
+
+      <div class="subhead">Recruiters</div>
+      ${recs.length ? recs.map(r => `
+        <div class="app-item">
+          <div><div class="who">${escapeHtml(r.full_name || r.email)}</div><div class="meta">${escapeHtml(r.email)} · ${r.is_active===false?'inactive':'active'}</div></div>
+          <button class="small" data-toggle-active="${r.id}" data-current="${r.is_active !== false}">${r.is_active === false ? 'Activate' : 'Deactivate'}</button>
+        </div>`).join("") : '<div class="empty">No recruiters yet.</div>'}
+
+      <div class="subhead">Analytics</div>
+      <div class="card mono" style="font-size:12.5px;white-space:pre-wrap;">${escapeHtml(JSON.stringify(analytics, null, 2))}</div>`;
+
+    $("#adCreate").onclick = async () => {
+      try {
+        await api("/admin/recruiters", { method:"POST", body: JSON.stringify({
+          full_name: $("#adName").value, email: $("#adEmail").value, password: $("#adPassword").value
+        })});
+        dashMsg("Recruiter created.", true);
+        renderAdmin();
+      } catch(err) { dashMsg(err.message); }
+    };
+    $$("[data-toggle-active]").forEach(b => b.onclick = async () => {
+      const isActive = b.dataset.current === "true";
+      try { await api(`/admin/users/${b.dataset.toggleActive}/active`, { method:"PATCH", body: JSON.stringify({ is_active: !isActive }) }); renderAdmin(); }
+      catch(err) { dashMsg(err.message); }
+    });
   } catch(err) { body.innerHTML = `<div class="msg err">${escapeHtml(err.message)}</div>`; }
 }
 
