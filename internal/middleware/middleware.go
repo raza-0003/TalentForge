@@ -3,7 +3,7 @@ package middleware
 
 import (
 	"net/http"
-	"string"
+	"strings"
 	"time"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
